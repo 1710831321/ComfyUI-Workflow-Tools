@@ -15,8 +15,6 @@ ComfyUI 自定义节点集合，专注于提升工作流效率：在单节点管
 | MultiLoraLoader | 多 LoRA 加载器 | loaders | 在单节点堆叠并开关多个 LoRA |
 | PromptSegments | 提示词段落 | conditioning | 用标签自动补全组合多段提示词 |
 | ResolutionSwitcher | 分辨率切换器 | latent | 在预设分辨率间一键切换 |
-| Img2ImgTxt2ImgSwitch | 图生图 / 文生图 切换 | latent | 用带标签的开关路由图生图 / 文生图 Latent |
-| PromptExtractor | 提示词提取器 | image | 从 PNG 元数据提取正向 / 反向提示词 |
 
 ---
 
@@ -111,61 +109,3 @@ ComfyUI 自定义节点集合，专注于提升工作流效率：在单节点管
 ### 使用方法
 
 添加 **分辨率切换器** 节点，将预设尺寸调整为你常用的值，然后点击所需行的开关。将 **LATENT** 输出接入 KSampler 或其他潜空间节点。
-
----
-
-## 图生图 / 文生图 切换
-
-为 img2img / txt2img 工作流提供带语义标签的 LATENT 切换节点。功能上等价于通用 Switch 节点，但输入槽和开关都标注了实际工作流名称，避免混淆两侧。
-
-### 功能特性
-
-- **可视化开关** — 在画布上绘制的双侧胶囊开关：
-  - 右侧 = **文生图**（绿色 `#2e7d32` 背景，激活时亮绿色标签）
-  - 左侧 = **图生图**（红色 `#6a1b1b` 背景，激活时亮红色标签）
-- **两个可选 LATENT 输入** — `img2img_latent` 与 `txt2img_latent`
-- **单个 `latent` 输出** — 根据开关状态转发对应一侧的 Latent
-- **状态持久化** — 模式保存在隐藏的 `mode` BOOLEAN 控件中，工作流重新加载后恢复
-- **回退行为** — 若只连接一侧输入，无论开关状态都使用已连接的一侧；若两侧均未连接，返回 `None`
-
-### 输入 / 输出
-
-- **必填**：`mode`（BOOLEAN，默认 `true`，隐藏控件，由可视化开关控制）
-- **可选**：`img2img_latent`（LATENT）、`txt2img_latent`（LATENT）
-- **输出**：`latent`（LATENT）
-
-### 使用方法
-
-添加 **图生图 / 文生图 切换** 节点，将图生图 Latent 接入 `img2img_latent`，文生图 Latent 接入 `txt2img_latent`。点击开关选择哪一路输出到 `latent`。将输出接入 KSampler 或其他潜空间节点。
-
----
-
-## 提示词提取器
-
-从 ComfyUI 或 WebUI（A1111）生成的 PNG 元数据中提取正向与反向提示词。原生支持使用了提示词段落的 ComfyUI 工作流。
-
-### 功能特性
-
-- **双元数据来源**：
-  - ComfyUI API prompt JSON（来自 `prompt` PNG info 键）
-  - A1111 `parameters` 文本（解析 `Negative prompt:` 及后续的 `Steps:`、`Sampler:`、`Seed:` 等生成参数）
-- **widget-index 引用解析** — 递归解析 ComfyUI 的 `["node_id", widget_idx]` 引用（深度上限 10），追溯上游文本节点
-- **原生提示词段落支持** — 遇到 PromptSegments 节点时，解析段落 JSON 并仅合并已启用段落的文本
-- **上游文本链** — 对 PromptSegments 节点，同时解析并前置其 `prompts_in` 上游文本
-- **反向提示词识别** — 当 CLIPTextEncode / PromptSegments 节点的标题包含以下任一关键词时判定为反向：`negative`、`neg`、`负`、`反面`、`反向`、`负面`、`消极`
-- **约定回退** — 无关键词识别反向且正向提示词数 ≥ 2 时，将最后一个视为反向（第一个 = 正向，第二个 = 反向）
-- **去重** — 正向和反向列表各自去重，并从正向列表中移除同时出现在反向列表中的条目
-- **图像查找** — 通过对像素数据前 4KB 求哈希，在 ComfyUI 的 `input/` 目录中匹配输入图像张量（支持 `.png`、`.jpg`、`.jpeg`、`.webp`、`.bmp`）
-- **输出**：`positive` 和 `negative` 均为 STRING（无元数据时 `positive` 返回 `"No prompt metadata found."`）
-
-### 输入 / 输出
-
-- **必填**：`image`（IMAGE）
-- **输出**：`positive`（STRING）、`negative`（STRING）
-
-### 使用方法
-
-1. 将源 PNG 复制到 ComfyUI 的 `input/` 目录。
-2. 添加标准的 **Load Image** 节点并选择该文件。
-3. 将 **Load Image** 的输出 → **提示词提取器**。
-4. 按需使用 `positive` / `negative` 的 STRING 输出（如接入提示词段落或 CLIP 文本编码器）。

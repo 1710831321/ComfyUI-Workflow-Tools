@@ -15,8 +15,6 @@ The frontend UI ships with **Chinese** as the default (`const LANG = "zh"` at th
 | MultiLoraLoader | 多 LoRA 加载器 | loaders | Stack and toggle multiple LoRAs in one node |
 | PromptSegments | 提示词段落 | conditioning | Combine prompt segments with tag auto-complete |
 | ResolutionSwitcher | 分辨率切换器 | latent | Switch between pre-configured resolution presets |
-| Img2ImgTxt2ImgSwitch | 图生图 / 文生图 切换 | latent | Route img2img / txt2img latents via a labelled toggle |
-| PromptExtractor | 提示词提取器 | image | Extract positive/negative prompts from PNG metadata |
 
 ---
 
@@ -111,61 +109,3 @@ Quickly switch between pre-configured resolution presets without re-typing dimen
 ### Usage
 
 Add the **Resolution Switcher** node. Adjust the preset dimensions to your commonly used sizes, then click the toggle on the row you want. Connect the **LATENT** output to your KSampler or any node that accepts latent input.
-
----
-
-## img2img / txt2img Switch
-
-A semantically labelled LATENT switch for img2img / txt2img pipelines. Functionally equivalent to a generic Switch node, but the inputs and toggle are labelled with the actual pipeline names so you never confuse which side is which.
-
-### Features
-
-- **Visual toggle switch** — a two-sided pill drawn on the canvas:
-  - Right side = **txt2img** (green `#2e7d32` background, bright green label when active)
-  - Left side = **img2img** (red `#6a1b1b` background, bright red label when active)
-- **Two optional LATENT inputs** — `img2img_latent` and `txt2img_latent`
-- **Single `latent` output** — forwards whichever side is selected by the toggle
-- **State persistence** — the mode is stored in a hidden `mode` BOOLEAN widget and restored on workflow reload
-- **Fallback behavior** — if only one side is connected, that side is used regardless of the toggle; if neither is connected, returns `None`
-
-### Inputs / Outputs
-
-- **Required**: `mode` (BOOLEAN, default `true` — hidden, controlled by the visual toggle)
-- **Optional**: `img2img_latent` (LATENT), `txt2img_latent` (LATENT)
-- **Outputs**: `latent` (LATENT)
-
-### Usage
-
-Add the **img2img / txt2img Switch** node. Connect your img2img latent to `img2img_latent` and your txt2img latent to `txt2img_latent`. Click the toggle to choose which one is forwarded to the `latent` output. Connect the output to your KSampler or any latent-accepting node.
-
----
-
-## Prompt Extractor
-
-Extract positive and negative prompts from PNG metadata produced by ComfyUI or WebUI (A1111). Natively understands ComfyUI workflows that use Prompt Segments.
-
-### Features
-
-- **Dual metadata sources**:
-  - ComfyUI API prompt JSON (from the `prompt` PNG info key)
-  - A1111 `parameters` text (parses `Negative prompt:` and trailing generation settings like `Steps:`, `Sampler:`, `Seed:`)
-- **Widget-index reference resolution** — resolves ComfyUI `["node_id", widget_idx]` references recursively (depth limit: 10) to follow upstream text nodes
-- **Native Prompt Segments support** — when it encounters a PromptSegments node, it parses the segments JSON and joins only the enabled segments' text
-- **Upstream text chaining** — for PromptSegments nodes, also resolves and prepends the upstream `prompts_in` text
-- **Negative prompt detection** — classifies a CLIPTextEncode / PromptSegments node as negative if its title contains any of: `negative`, `neg`, `负`, `反面`, `反向`, `负面`, `消极`
-- **Convention fallback** — when no keyword identifies a negative prompt and there are 2+ positive prompts, the last one is treated as negative (first = positive, second = negative)
-- **Deduplication** — removes duplicate prompts within positive and negative lists, and removes any positive prompt that also appears in the negative list
-- **Image lookup** — matches the input image tensor against files in ComfyUI's `input/` directory by hashing the first 4KB of pixel data (supports `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`)
-- **Outputs**: `positive` and `negative` as STRING (returns `"No prompt metadata found."` for positive if no metadata is present)
-
-### Inputs / Outputs
-
-- **Required**: `image` (IMAGE)
-- **Outputs**: `positive` (STRING), `negative` (STRING)
-
-### Usage
-
-1. Copy the source PNG into ComfyUI's `input/` folder.
-2. Add a standard **Load Image** node and select the file.
-3. Connect the **Load Image** output → **Prompt Extractor**.
-4. Use the `positive` / `negative` STRING outputs as needed (e.g. feed them into Prompt Segments or a CLIP Text Encoder).
