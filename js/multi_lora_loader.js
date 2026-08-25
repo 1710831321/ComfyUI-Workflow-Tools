@@ -338,6 +338,31 @@ class DomDropdown {
 }
 const domDropdown = new DomDropdown();
 
+// LoRA 名称悬浮提示
+const loraTooltip = document.createElement("div");
+Object.assign(loraTooltip.style, {
+    position: "fixed", zIndex: "99999", background: "#1c1c1c",
+    border: "1px solid #4a8a4a", borderRadius: "4px",
+    padding: "4px 8px", color: "#ddd", fontSize: "11px",
+    pointerEvents: "none", display: "none", whiteSpace: "nowrap",
+    maxWidth: "500px", boxShadow: "0 2px 8px rgba(0,0,0,0.6)"
+});
+document.body.appendChild(loraTooltip);
+
+function showLoraTooltip(text, clientX, clientY) {
+    loraTooltip.textContent = text;
+    loraTooltip.style.display = "block";
+    let x = clientX + 12, y = clientY + 12;
+    const rect = loraTooltip.getBoundingClientRect();
+    if (x + rect.width > window.innerWidth - 8) x = clientX - rect.width - 12;
+    if (y + rect.height > window.innerHeight - 8) y = clientY - rect.height - 12;
+    loraTooltip.style.left = x + "px";
+    loraTooltip.style.top = y + "px";
+}
+function hideLoraTooltip() {
+    loraTooltip.style.display = "none";
+}
+
 function parseRows(val) {
     try {
         const rows = JSON.parse(val || "[]");
@@ -407,6 +432,9 @@ function makeLoraRowWidget(node, row, rowIndex, loraList, onDelete, onchange) {
 
             // LoRA下拉
             const lx = x, lw = cols[1];
+            // 存储选择框位置与名称，供 hover 提示使用
+            this._loraName = row.lora;
+            this._loraBox = { x: lx, w: lw, y: y, h: ROW_H + 6 };
             drawBox(ctx, lx, ry + 4, lw, rh - 8, 4, "#252525", "#3a3a3a");
             ctx.save(); ctx.rect(lx + 6, ry, lw - 20, rh + 6); ctx.clip();
             ctx.fillStyle = row.lora === "None" ? "#555" : "#ddd";
@@ -715,17 +743,38 @@ app.registerExtension({
         const oldMouseMove = node.onMouseMove;
         node.onMouseMove = function (e, pos) {
             oldMouseMove?.apply(this, arguments);
+            const [mx, my] = pos;
+
+            // 添加按钮 hover 跟踪
             const btn = this.widgets?.find(w => w.name === "__lora_add_btn");
             const r = addBtnRect(btn);
-            if (!r) return;
-            const [mx, my] = pos;
-            const inside = mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom;
-            if (inside !== !!btn._hovered) {
-                btn._hovered = inside;
-                const cv = app.canvas?.canvas;
-                if (cv) cv.style.cursor = inside ? "pointer" : "";
-                app.canvas?.setDirty(true, true);
+            if (r) {
+                const inside = mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom;
+                if (inside !== !!btn._hovered) {
+                    btn._hovered = inside;
+                    const cv = app.canvas?.canvas;
+                    if (cv) cv.style.cursor = inside ? "pointer" : "";
+                    app.canvas?.setDirty(true, true);
+                }
             }
+
+            // LoRA 选择框 hover 提示：显示完整 LoRA 名称（含路径）
+            let loraHovering = false;
+            const rowWidgets = this.widgets?.filter(w => w.type === "custom_lora_row") || [];
+            for (const w of rowWidgets) {
+                if (!w._loraBox || w._loraName === undefined) continue;
+                const lb = w._loraBox;
+                if (mx >= lb.x && mx <= lb.x + lb.w && my >= lb.y && my <= lb.y + lb.h) {
+                    if (w._loraName && w._loraName !== "None") {
+                        const fullName = w._loraName.replace(/\\/g, "/")
+                            .replace(/\.(safetensors|pt|ckpt)$/i, "");
+                        showLoraTooltip(fullName, e.clientX, e.clientY);
+                        loraHovering = true;
+                    }
+                    break;
+                }
+            }
+            if (!loraHovering) hideLoraTooltip();
         };
         const oldMouseLeave = node.onMouseLeave;
         node.onMouseLeave = function (e) {
@@ -737,6 +786,7 @@ app.registerExtension({
                 if (cv) cv.style.cursor = "";
                 app.canvas?.setDirty(true, true);
             }
+            hideLoraTooltip();
         };
     }
 });
